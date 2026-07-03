@@ -61,7 +61,7 @@ mcpsnoop http --target http://localhost:3000/mcp --listen :7000
 ```
 
 No server of your own to test against? [docs/DEMO.md](docs/DEMO.md) walks through
-pointing Claude at a published test server through mcpsnoop.
+pointing Codex or Claude at a published test server through mcpsnoop.
 
 ## Features
 
