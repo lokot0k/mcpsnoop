@@ -21,6 +21,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/kerlenton/mcpsnoop/internal/exporter"
 	"github.com/kerlenton/mcpsnoop/internal/paths"
 	"github.com/kerlenton/mcpsnoop/internal/proxy"
 	"github.com/kerlenton/mcpsnoop/internal/tui"
@@ -49,6 +50,10 @@ func main() {
 	if args := os.Args[1:]; len(args) > 0 && args[0] == "http" {
 		os.Exit(runHTTP(args[1:]))
 	}
+	// `mcpsnoop export` renders a captured JSONL session to json/html/text.
+	if args := os.Args[1:]; len(args) > 0 && args[0] == "export" {
+		os.Exit(runExport(args[1:]))
+	}
 	// `mcpsnoop version` mirrors the --version flag (what most CLIs expect).
 	if args := os.Args[1:]; len(args) == 1 && (args[0] == "version" || args[0] == "-v") {
 		fmt.Println("mcpsnoop", appVersion())
@@ -71,6 +76,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Usage:\n")
 		fmt.Fprintf(os.Stderr, "  mcpsnoop [flags] -- <server command> [args...]   run as transparent stdio shim\n")
 		fmt.Fprintf(os.Stderr, "  mcpsnoop http --target <url> [--listen :7000]     run as transparent HTTP proxy\n")
+		fmt.Fprintf(os.Stderr, "  mcpsnoop export [-T json|html|text] [-o file|-] [session-id|log.jsonl]\n")
 		fmt.Fprintf(os.Stderr, "  mcpsnoop                                          run the live TUI (collector)\n")
 		fmt.Fprintf(os.Stderr, "  mcpsnoop demo                                     play a scripted session (no setup)\n\n")
 		fmt.Fprintf(os.Stderr, "Flags:\n")
@@ -135,6 +141,62 @@ func labelFor(command []string) string {
 		return filepath.Base(command[0])
 	}
 	return pick
+}
+
+// runExport reads a persisted JSONL session and writes a portable export.
+func runExport(args []string) int {
+	fs := flag.NewFlagSet("mcpsnoop export", flag.ExitOnError)
+	var (
+		formatFlag = fs.String("T", "json", "output format: json, html, or text")
+		outFlag    = fs.String("o", "-", "output path, or - for stdout")
+	)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: mcpsnoop export [-T json|html|text] [-o file|-] [session-id|log.jsonl]\n\n")
+		fmt.Fprintf(os.Stderr, "If no session is provided, the newest session log is exported.\n\n")
+		fmt.Fprintf(os.Stderr, "Flags:\n")
+		fs.PrintDefaults()
+	}
+	_ = fs.Parse(args)
+	if fs.NArg() > 1 {
+		fmt.Fprintln(os.Stderr, "mcpsnoop export: expected at most one session id or log path")
+		return 2
+	}
+	format, err := exporter.ParseFormat(*formatFlag)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "mcpsnoop export:", err)
+		return 2
+	}
+	var arg string
+	if fs.NArg() == 1 {
+		arg = fs.Arg(0)
+	}
+	inPath, err := exporter.ResolveSessionPath(arg)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "mcpsnoop export:", err)
+		return 1
+	}
+
+	var out *os.File
+	if *outFlag == "-" {
+		out = os.Stdout
+	} else {
+		if err := os.MkdirAll(filepath.Dir(*outFlag), 0o700); err != nil {
+			fmt.Fprintln(os.Stderr, "mcpsnoop export:", err)
+			return 1
+		}
+		f, err := os.OpenFile(*outFlag, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "mcpsnoop export:", err)
+			return 1
+		}
+		defer f.Close()
+		out = f
+	}
+	if err := exporter.ExportFile(inPath, out, exporter.Options{Format: format}); err != nil {
+		fmt.Fprintln(os.Stderr, "mcpsnoop export:", err)
+		return 1
+	}
+	return 0
 }
 
 // runShim runs the transparent stdio proxy. It writes the durable session log

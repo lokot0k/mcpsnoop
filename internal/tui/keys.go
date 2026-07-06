@@ -24,6 +24,7 @@ type keyMap struct {
 	Pause  key.Binding
 	Follow key.Binding
 	Copy   key.Binding
+	Export key.Binding
 	Delete key.Binding
 
 	Quit key.Binding
@@ -49,6 +50,7 @@ func defaultKeys() keyMap {
 		Pause:  key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "pause")),
 		Follow: key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "follow")),
 		Copy:   key.NewBinding(key.WithKeys("y"), key.WithHelp("y", "copy JSON")),
+		Export: key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "export HTML")),
 		Delete: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl-d", "delete session")),
 
 		Quit: key.NewBinding(key.WithKeys("ctrl+c"), key.WithHelp(":q", "quit")),

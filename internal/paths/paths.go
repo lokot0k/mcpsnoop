@@ -46,6 +46,13 @@ func SessionsDir() string {
 	return d
 }
 
+// ExportsDir holds files written from the TUI export action.
+func ExportsDir() string {
+	d := filepath.Join(Base(), "exports")
+	_ = os.MkdirAll(d, 0o700)
+	return d
+}
+
 // SessionLogPath returns the JSONL trace path for a given session id.
 func SessionLogPath(sessionID string) string {
 	return filepath.Join(SessionsDir(), sessionID+".jsonl")

@@ -146,6 +146,18 @@ matches the method, tool, id and payload, while `tool:` `method:` `id:` `kind:`
 to a search tool, and `dir:s2c kind:req` surfaces server-initiated requests
 (sampling, roots). The `?` help lists each token and the values it accepts.
 
+## Exporting sessions
+
+`mcpsnoop export -T json|html|text [-o file|-] [session-id|log.jsonl]` reads a
+captured JSONL session and writes a portable export. `json` includes correlated
+calls, durations, status, tool-level `isError`, capabilities, and the raw
+frames. `html` is a self-contained browser file with search and collapsible
+JSON. `text` is a pretty plain dump. Omit the session argument to export the
+newest saved session, and use `-o -` to write to stdout.
+
+In the TUI, press `e` to export the selected session as HTML, or run
+`:export json|html|text [path]` from command mode.
+
 ## Security
 
 mcpsnoop runs the server command you wrap, so only wrap servers you trust and

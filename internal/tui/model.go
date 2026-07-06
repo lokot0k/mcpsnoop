@@ -3,6 +3,7 @@ package tui
 import (
 	"cmp"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/kerlenton/mcpsnoop/internal/exporter"
 	"github.com/kerlenton/mcpsnoop/internal/paths"
 	"github.com/kerlenton/mcpsnoop/internal/proxy"
 	"github.com/kerlenton/mcpsnoop/internal/store"
@@ -276,6 +278,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	case key.Matches(msg, m.keys.Copy):
 		m.copyCurrent()
+	case key.Matches(msg, m.keys.Export):
+		m.exportCurrent("", "")
 	case key.Matches(msg, m.keys.Delete):
 		m.deleteCurrentSession()
 
@@ -336,9 +340,14 @@ func (m Model) handleInput(msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 }
 
-// runCommand handles ":" commands: q/quit, sessions, stream, or a session name.
+// runCommand handles ":" commands: q/quit, sessions, stream, export, or a session name.
 func (m Model) runCommand(cmd string) (Model, tea.Cmd) {
-	switch strings.ToLower(cmd) {
+	fields := strings.Fields(cmd)
+	base := strings.ToLower(cmd)
+	if len(fields) > 0 {
+		base = strings.ToLower(fields[0])
+	}
+	switch base {
 	case "":
 		return m, nil
 	case "q", "quit", "exit":
@@ -355,6 +364,16 @@ func (m Model) runCommand(cmd string) (Model, tea.Cmd) {
 			m.enterStream(m.selSession)
 		}
 		return m, nil
+	case "export":
+		format, out := "", ""
+		if len(fields) > 1 {
+			format = fields[1]
+		}
+		if len(fields) > 2 {
+			out = fields[2]
+		}
+		m.exportCurrent(format, out)
+		return m, nil
 	}
 	// Otherwise treat it as a session-name jump.
 	for i, s := range m.sessions {
@@ -370,7 +389,7 @@ func (m *Model) openInput(mode inputMode) {
 	m.inputMode = mode
 	if mode == inputCommand {
 		m.input.Prompt = ":"
-		m.input.Placeholder = "sessions · stream · <name> · q"
+		m.input.Placeholder = "sessions · stream · export [format] [path] · <name> · q"
 		m.input.SetValue("")
 	} else {
 		m.input.Prompt = "/"
@@ -823,6 +842,49 @@ func (m *Model) copyCurrent() {
 		return
 	}
 	m.setFlash("✓ copied " + label)
+}
+
+// exportCurrent writes the selected/open session to a portable file.
+func (m *Model) exportCurrent(formatArg, outPath string) {
+	id := m.currentSessionID()
+	if id == "" {
+		return
+	}
+	format := exporter.FormatHTML
+	if formatArg != "" {
+		var err error
+		format, err = exporter.ParseFormat(formatArg)
+		if err != nil {
+			m.setFlash("export failed: bad format")
+			return
+		}
+	}
+	data, err := exporter.Build(m.store, id)
+	if err != nil {
+		m.setFlash("export failed")
+		return
+	}
+	if outPath == "" {
+		outPath = exporter.DefaultOutputPath(id, format)
+	}
+	if err := os.MkdirAll(filepath.Dir(outPath), 0o700); err != nil {
+		m.setFlash("export failed")
+		return
+	}
+	f, err := os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
+	if err != nil {
+		m.setFlash("export failed")
+		return
+	}
+	err = exporter.Write(f, data, exporter.Options{Format: format})
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		m.setFlash("export failed")
+		return
+	}
+	m.setFlash("✓ exported " + outPath)
 }
 
 // deleteCurrentSession removes the selected/open session and its on-disk log.

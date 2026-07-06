@@ -154,7 +154,7 @@ func (m Model) headerHints() string {
 		hs = []hint{
 			{"enter", "Inspect"}, {"r", "Replay"},
 			{"c", "Caps"}, {"y", "Copy JSON"},
-			{"/", "Filter"}, {"p", "Pause"},
+			{"e", "Export"}, {"/", "Filter"}, {"p", "Pause"},
 			{"f", "Follow"}, {"esc", "Back"},
 			{":", "Command"}, {"?", "Help"},
 			{"ctrl-d", "Delete"}, {":q", "Quit"},
@@ -162,7 +162,8 @@ func (m Model) headerHints() string {
 	} else {
 		hs = []hint{
 			{"enter", "Open"}, {"/", "Filter"},
-			{"y", "Copy path"}, {":", "Command"},
+			{"y", "Copy path"}, {"e", "Export"},
+			{":", "Command"},
 			{"g/G", "Top/Bot"}, {"ctrl-f", "Page"},
 			{"ctrl-d", "Delete"}, {"p", "Pause"},
 			{"?", "Help"}, {":q", "Quit"},
@@ -449,7 +450,7 @@ func (m Model) renderHelp(h int) string {
 		}},
 		{"VIEWS & SEARCH", [][2]string{
 			{"/", "filter the current table"},
-			{":", "command: sessions · stream · <name> · q"},
+			{":", "command: sessions · stream · export [format] [path] · <name> · q"},
 			{"shift+N/R/S/E/L", "sort sessions (name/req/resp/err/last)"},
 			{"shift+T/M/I/D/S", "sort stream (time/method/id/dur/status)"},
 			{"?", "toggle this help"},
@@ -475,6 +476,7 @@ func (m Model) renderHelp(h int) string {
 		}},
 		{"MANAGE", [][2]string{
 			{"y", "copy frame JSON / session log path"},
+			{"e", "export selected session as HTML"},
 			{"ctrl-d", "delete the selected session (and its log)"},
 		}},
 		{"GENERAL", [][2]string{
