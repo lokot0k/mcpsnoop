@@ -13,6 +13,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/signal"
@@ -352,8 +353,8 @@ func runOpen(args []string) int {
 	fs := flag.NewFlagSet("mcpsnoop open", flag.ExitOnError)
 
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: mcpsnoop open <session.jsonl>\n\n")
-		fmt.Fprintf(os.Stderr, "Open a persisted session log directly in the TUI.\n")
+		fmt.Fprintf(os.Stderr, "Usage: mcpsnoop open <session.jsonl>|-\n\n")
+		fmt.Fprintf(os.Stderr, "Open a persisted session log directly in the TUI. Use - to read from stdin.\n")
 	}
 
 	_ = fs.Parse(args)
@@ -363,28 +364,47 @@ func runOpen(args []string) int {
 		return 2
 	}
 
-	path := fs.Arg(0)
-
-	f, err := os.Open(path)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "mcpsnoop open:", err)
-		return 1
+	arg := fs.Arg(0)
+	usedStdin := arg == "-"
+	var r io.Reader
+	if usedStdin {
+		r = os.Stdin
+	} else {
+		f, err := os.Open(arg)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "mcpsnoop open:", err)
+			return 1
+		}
+		defer f.Close()
+		r = f
 	}
-	defer f.Close()
+
 	st := store.New(0)
-	err = proxy.Decode(f, func(e proxy.Envelope) {
+	if err := proxy.Decode(r, func(e proxy.Envelope) {
 		st.Ingest(e)
-	})
-	if err != nil {
+	}); err != nil {
 		fmt.Fprintln(os.Stderr, "mcpsnoop open:", err)
 		return 1
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := tui.RunOpen(ctx, st); err != nil {
-		fmt.Fprintln(os.Stderr, "mcpsnoop open:", err)
-		return 1
+	if usedStdin {
+		tty, err := openTTY()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "mcpsnoop open:", err)
+			return 1
+		}
+		defer tty.Close()
+		if err := tui.RunOpenWithInput(ctx, st, tty); err != nil {
+			fmt.Fprintln(os.Stderr, "mcpsnoop open:", err)
+			return 1
+		}
+	} else {
+		if err := tui.RunOpen(ctx, st); err != nil {
+			fmt.Fprintln(os.Stderr, "mcpsnoop open:", err)
+			return 1
+		}
 	}
 
 	return 0
